@@ -1,0 +1,47 @@
+{
+  "result": [
+    [
+      {
+        "uri": "tv:dvbt?trip=8442.1.257&srvName=TF1",
+        "title": "TF1",
+        "index": 0,
+        "dispNum": "001",
+        "programMediaType": "tv",
+        "tripletStr": "8442.1.257"
+      },
+      {
+        "uri": "tv:dvbt?trip=8442.2.513&srvName=France%202",
+        "title": "France 2",
+        "index": 1,
+        "dispNum": "002",
+        "programMediaType": "tv",
+        "tripletStr": "8442.2.513"
+      },
+      {
+        "uri": "tv:dvbt?trip=8442.3.769&srvName=France%203",
+        "title": "France 3",
+        "index": 2,
+        "dispNum": "003",
+        "programMediaType": "tv",
+        "tripletStr": "8442.3.769"
+      },
+      {
+        "uri": "tv:dvbt?trip=8442.6.1025&srvName=France%205",
+        "title": "France 5",
+        "index": 3,
+        "dispNum": "005",
+        "programMediaType": "tv",
+        "tripletStr": "8442.6.1025"
+      },
+      {
+        "uri": "tv:dvbt?trip=8442.5.1281&srvName=M6",
+        "title": "M6",
+        "index": 4,
+        "dispNum": "006",
+        "programMediaType": "tv",
+        "tripletStr": "8442.5.1281"
+      }
+    ]
+  ],
+  "id": 1
+}

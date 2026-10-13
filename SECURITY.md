@@ -30,6 +30,24 @@ Gladys before reporting a problem.
 
 In scope: the code of this repository and the Docker image it publishes.
 
+What the integration handles:
+
+- **Secrets**: the pre-shared key or the PIN of each TV, typed in the Gladys
+  configuration (secret fields). They are sent only to the TV they belong to,
+  in the `X-Auth-PSK` header or the PIN registration, and never written to the
+  logs nor to `/data`. The `auth` cookie a TV gives after a PIN registration is
+  kept in memory only.
+- **`/data`**: `bravia-state.json` holds the registration id of this Gladys
+  (a random identifier, sent to the TVs at PIN registration) and, for each TV,
+  what it told about itself: model, serial number, MAC address, inputs and
+  applications. No key, no PIN.
+- **Network**: plain HTTP (or HTTPS when the address says so, certificate not
+  checked: TVs only have self-signed ones) to the addresses typed in the
+  configuration, on the local network; the Wake-on-LAN packets are sent by the
+  Gladys core on request (`network_wake`). No cloud service, no other
+  destination.
+
 Out of scope: Gladys Assistant itself (see its
 [security policy](https://github.com/GladysAssistant/Gladys/security/policy)),
-and the third-party services and devices the integration talks to.
+and the TVs themselves: the Bravia IP control API is a plain HTTP protocol of
+Sony, readable by anyone on the local network.

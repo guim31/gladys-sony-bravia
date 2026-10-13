@@ -1,93 +1,73 @@
+// -----------------------------------------------------------------------------
+// The scene actions: open an app, choose an input, send a key — by the names
+// a scene author types, on the chosen TV or the only one.
+// -----------------------------------------------------------------------------
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { DEVICE_BLUEPRINTS } from '../src/devices/index.js';
-import { MOTION_DETECTED_TRIGGER, motionSensor } from '../src/devices/motionSensor.js';
-import { SCENE_ACTIONS } from '../src/scenes.js';
-import { normalizeConfig } from '../src/config.js';
+import { FakeBravia, PSK, URL_1, URL_2, createWorld, deviceOf } from './helpers/world.js';
 
-const manifest = JSON.parse(
-  await readFile(new URL('../gladys-assistant-integration.json', import.meta.url), 'utf8'),
-);
-const config = normalizeConfig();
-
-const declarationOf = (list, key) => manifest[list].find((entry) => entry.key === key);
-const keysOf = (list) => (list ?? []).map((entry) => entry.key);
-const deviceIdOf = (gladys, key) =>
-  DEVICE_BLUEPRINTS.find((bp) => bp.key === key).deviceExternalId(gladys);
-
-// Let the async interval callback run to completion.
-const flush = () => new Promise((resolve) => setImmediate(resolve));
-
-test('the motion sensor fires one motion_detected event per detection, none on the clear', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
-  const gladys = createFakeGladys();
-  const stopPush = motionSensor.startPush(gladys, config);
-  try {
-    t.mock.timers.tick(60_000);
-    await flush();
-    assert.equal(gladys.fake.sceneEvents.length, 1, 'one detection, one event');
-    assert.equal(gladys.fake.sceneEvents[0].key, MOTION_DETECTED_TRIGGER);
-    assert.equal(gladys.fake.states.at(-1).state, 1, 'the state is still published');
-
-    t.mock.timers.tick(10_000);
-    await flush();
-    assert.equal(gladys.fake.states.at(-1).state, 0, 'the detection is cleared');
-    assert.equal(gladys.fake.sceneEvents.length, 1, 'the clear fires no event');
-  } finally {
-    stopPush();
-  }
+test('open an app by name, the TV turned on first', async (t) => {
+  const tv = new FakeBravia({ power: 'standby' });
+  const world = await createWorld({ tvs: { [URL_1]: tv } });
+  t.after(() => world.app.stop());
+  const ack = await world.fake.sceneAction('open_app', { app: 'prime video' });
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(ack.data.outputs, { app: 'Prime Video' });
+  assert.equal(tv.power, 'active');
+  assert.match(tv.foregroundApp, /amazonvideo/);
+  const missing = await world.fake.sceneAction('open_app', { app: 'Canal+' });
+  assert.equal(missing.success, false);
+  assert.equal(missing.error, 'No app "Canal+" on this TV.');
 });
 
-test('motion_detected data only carries keys the trigger declares', async (t) => {
-  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
-  const gladys = createFakeGladys();
-  const stopPush = motionSensor.startPush(gladys, config);
-  try {
-    t.mock.timers.tick(60_000);
-    await flush();
-  } finally {
-    stopPush();
-  }
-  const [{ data }] = gladys.fake.sceneEvents;
-  const trigger = declarationOf('scene_triggers', MOTION_DETECTED_TRIGGER);
-  // The core keeps the `fields` keys (filters) and the `variables` keys
-  // (exposed to the scene): any other key would be silently dropped.
-  const declared = [...keysOf(trigger.fields), ...keysOf(trigger.variables)];
-  for (const [key, value] of Object.entries(data)) {
-    assert.ok(declared.includes(key), `data.${key} is not declared, the core would drop it`);
-    assert.ok(value === null || typeof value !== 'object', `data.${key} must be a primitive`);
-  }
-  // A `"source": "devices"` filter stores a device external_id.
-  assert.equal(data.device, deviceIdOf(gladys, 'motion-sensor'));
-  const targets = trigger.fields.find((field) => field.key === 'target').options;
-  assert.ok(
-    targets.some((option) => option.value === data.target),
-    `data.target "${data.target}" must be one of the filter options`,
+test('choose an input by name or by the label set on the TV', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  const device = deviceOf(world).external_id;
+  let ack = await world.fake.sceneAction('select_input', { device, input: 'Freebox' });
+  assert.deepEqual(ack.data.outputs, { input: 'Freebox' });
+  assert.equal(world.tv.content, 'extInput:hdmi?port=1');
+  ack = await world.fake.sceneAction('select_input', { device, input: 'hdmi 2' });
+  assert.deepEqual(ack.data.outputs, { input: 'PS5' });
+  ack = await world.fake.sceneAction('select_input', { device, input: 'HDMI 7' });
+  assert.equal(ack.success, false);
+  assert.equal(ack.error, 'No input "HDMI 7" on this TV.');
+});
+
+test('send a key, several times', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  let ack = await world.fake.sceneAction('send_key', { key: 'down', repeat: 3 });
+  assert.deepEqual(ack.data.outputs, { presses: 3 });
+  assert.deepEqual(world.tv.keys, ['Down', 'Down', 'Down']);
+  ack = await world.fake.sceneAction('send_key', { key: 'confirm', repeat: 50 });
+  assert.deepEqual(ack.data.outputs, { presses: 10 }, 'bounded');
+  ack = await world.fake.sceneAction('send_key', { key: 'num_7' });
+  assert.deepEqual(ack.data.outputs, { presses: 1 });
+  assert.equal(world.tv.keys.at(-1), 'Num7');
+  ack = await world.fake.sceneAction('send_key', { key: 'eject' });
+  assert.equal(ack.success, false);
+  assert.equal(ack.error, 'Unknown key "eject".');
+});
+
+test('with several TVs, the scene must say which one', async (t) => {
+  const world = await createWorld({
+    config: { tv_1_host: '192.0.2.20', tv_1_psk: PSK, tv_2_host: '192.0.2.21', tv_2_psk: PSK },
+    tvs: {
+      [URL_1]: new FakeBravia(),
+      [URL_2]: new FakeBravia({ system: 'system-information-consumer' }),
+    },
+  });
+  t.after(() => world.app.stop());
+  const ack = await world.fake.sceneAction('send_key', { key: 'home' });
+  assert.equal(ack.success, false);
+  assert.equal(ack.error, 'Plusieurs téléviseurs sont configurés : choisissez-en un.');
+  const second = world.fake.discoveredDevices.find(
+    (device) => device.name === 'BRAVIA KD-55XF8596',
   );
-});
-
-test('identify_device signals the chosen device and returns the declared outputs', async () => {
-  const gladys = createFakeGladys();
-  const outputs = await SCENE_ACTIONS.identify_device(gladys, {
-    fields: { device: deviceIdOf(gladys, 'light') },
-    config,
-  });
-  assert.deepEqual(outputs, { signalled: true });
-  const declared = keysOf(declarationOf('scene_actions', 'identify_device').outputs);
-  for (const key of Object.keys(outputs)) {
-    assert.ok(declared.includes(key), `output "${key}" is not declared, the core would drop it`);
-  }
-});
-
-test('identify_device reports a device that cannot signal itself through its output', async () => {
-  // Not a failure: a scene action is never a condition, the scene author
-  // gates the following actions on the output instead.
-  const gladys = createFakeGladys();
-  const outputs = await SCENE_ACTIONS.identify_device(gladys, {
-    fields: { device: deviceIdOf(gladys, 'weather-station') },
-    config,
-  });
-  assert.deepEqual(outputs, { signalled: false });
+  const ok = await world.fake.sceneAction('send_key', { device: second.external_id, key: 'home' });
+  assert.equal(ok.success, true);
+  assert.deepEqual(world.network.tvs[URL_2].keys, ['Home']);
+  assert.deepEqual(world.network.tvs[URL_1].keys, []);
 });

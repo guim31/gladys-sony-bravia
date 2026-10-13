@@ -1,0 +1,17 @@
+{
+  "result": [
+    {
+      "product": "TV",
+      "region": "XEU",
+      "language": "fra",
+      "model": "KD-55XF8596",
+      "serial": "7654321",
+      "macAddr": "04:5D:4B:AB:CD:EF",
+      "name": "BRAVIA",
+      "generation": "5.4.0",
+      "area": "FRA",
+      "cid": "4f0c2a7e1b9d3c5a"
+    }
+  ],
+  "id": 33
+}

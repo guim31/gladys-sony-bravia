@@ -1,61 +1,184 @@
-# Demo Devices Template
+# Sony Bravia TV
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Control your Sony Bravia TVs from Gladys, over your local network: turn them
+on and off, set the volume, switch inputs, open an app, change the channel,
+press any key of the remote, from the dashboard or from a scene. And react to
+what happens on screen: "when the console turns the TV on HDMI 2, dim the
+lights".
 
-## What you get
+> **Developed without the hardware: feedback welcome.** This integration was
+> built and tested against the answers documented by Sony (Bravia REST API and
+> IRCC-IP) and those of the open-source pybravia library, with a simulated TV,
+> not against a real Bravia. If something does not work as described, please
+> say so on the [Gladys forum](https://community.gladysassistant.com) or in the
+> [issues](https://github.com/guim31/gladys-sony-bravia/issues).
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+## What you need
 
-## Configuration
+- Gladys Assistant 5.1.0 or later.
+- A **Sony Bravia Android TV or Google TV** (2015 and later), on the same local
+  network as Gladys, with a fixed IP address (a DHCP reservation in your
+  router).
+- **IP control** turned on, on the TV. The menus vary with the model; usually
+  **Settings → Network & Internet → Home network → IP control** (or **Settings
+  → Network → Home network setup → IP control**):
+  - **Authentication**: _Normal and Pre-Shared Key_;
+  - **Pre-Shared Key**: type a key of your choice, for example `gladys2026`;
+  - **Simple IP control** is not needed.
+- **Remote start** turned on (**Settings → Network & Internet → Remote
+  start**): without it, a TV in standby cannot be turned on over the network.
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+## Set up
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+1. Install the integration from the Gladys catalog.
+2. In **Configuration**, enter the **Address** of your TV (for example
+   `192.168.1.20`), then authenticate it in one of the two ways below, and
+   optionally give it a **Name**. Two or three TVs? Fill in the _Second TV_ and
+   _Third TV_ sections too.
+3. Save, then click **Test the connection**: the message under the button says,
+   for each TV, whether it answers, its model and whether it is on.
+4. Open the **Discover** tab: one device per TV. Click **Add**, pick a room,
+   save. A TV appears there once it has answered at least once: turn it on if
+   it does not show up.
 
-## Actions
+### With a pre-shared key (recommended)
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+Type the key set on the TV in **Pre-shared key**. Nothing else to do.
 
-## Scenes
+### With a PIN
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+Without a pre-shared key, the TV can pair with Gladys like with its phone app:
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
+1. Leave **Pre-shared key** empty, enter the address, save.
+2. Turn the TV on, then click **Show a PIN on the TV** (choose the TV): a
+   4-digit code appears on screen.
+3. Type it in **PIN (without key)**, save. Gladys registers itself on the TV
+   under the name _Gladys Assistant_, and registers again with the same PIN
+   when the TV asks (about every two weeks).
+
+The options at the bottom of the page:
+
+- **Wake-on-LAN** (on by default): many Bravia TVs turn their network off in
+  standby. Gladys then asks its core to send a Wake-on-LAN packet to the MAC
+  address the TV gave, which wakes it up. The integration declares it, as the
+  install screen shows.
+- **Refresh interval**: how often the TVs are read (10 s by default). A TV in
+  standby is only asked its power state.
+- **Volume step**: the change of each press on _Volume +_ and _Volume −_.
+- **Language of the feature names**: the names given to the features when you
+  add a device, and the texts of the lists and of the scene events.
+
+## The device of each TV
+
+| Feature      | What it does                                                                                                                                                                             |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Power        | On or standby. Turning it on uses Remote start, or Wake-on-LAN when the TV does not answer at all.                                                                                       |
+| Volume       | The volume of the TV speakers, 0 to 100, as a slider.                                                                                                                                    |
+| Volume down  | Lowers the volume by the configured step (the remote keys when a sound bar takes the sound).                                                                                             |
+| Volume up    | Raises the volume the same way.                                                                                                                                                          |
+| Mute         | Mutes or unmutes the sound.                                                                                                                                                              |
+| Input        | The input on screen (HDMI 1, HDMI 2…, with the names you gave them on the TV), and to switch to another one. _Other (TV, apps)_ shows an app or the tuner, and choosing it presses Home. |
+| App          | Opens one of the TV apps. Shows the app Gladys opened, until the screen changes; _Home screen_ presses Home.                                                                             |
+| Channel      | The number of the channel on screen, and to switch to another number.                                                                                                                    |
+| Channel down | Previous channel.                                                                                                                                                                        |
+| Channel up   | Next channel.                                                                                                                                                                            |
+| Now playing  | What is on screen, as a text: an input, `5 · France 5 — program`, _App or home screen_, or _Off_.                                                                                        |
+
+The lists of inputs and apps are read from the TV (every 30 minutes and every
+6 hours, while it is on) and kept by the integration: they are there even when
+the TV sleeps. A command that needs the screen (an input, an app, a channel)
+turns the TV on first and waits for it, up to 20 seconds.
 
 ## Dashboard
 
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
+Three widgets, to place side by side; each one shows one TV (the first one of
+the configuration when none is chosen in its settings). The core allows four
+buttons per widget, hence three of them.
+
+- **Bravia remote**: the state of the TV, what is on screen, the volume, and
+  the buttons **Turn on** (or _Turn off_), **Volume −**, **Volume +** and
+  **Mute**.
+- **Bravia keys**: four keys of the remote, chosen in the widget settings:
+  the arrows by default. Add a second one with _OK_, _Back_, _Home_, _Input_, or
+  _Play_ and _Pause_…
+- **Bravia shortcuts**: up to four favorite inputs or apps, typed by name in
+  the settings (`HDMI 2`, `PS5`, `Netflix`…); the connected inputs when none is
+  typed. One tap shows it, the TV turned on first. A name the TV does not know
+  is reported under the buttons.
+
+## Scenes
+
+### Trigger
+
+**TV: input, channel or app changed**: what is on screen changed, turning on
+included. Filters: the TV, what is now on screen (input, channel, app or home
+screen), its name exactly as the TV shows it (`PS5`, `HDMI 2`, `TF1`), and who
+changed it (Gladys, or the TV and its remote, a console over HDMI-CEC…). Variables: the TV, the kind (`input`, `channel`, `app`), the name
+(of the input, the channel, or the app Gladys opened), the channel number, the
+program, and who changed it.
+
+The TV API never says which app is in front: an app opened from the remote is
+_App or home screen_; going from one app to another fires nothing.
+
+No "TV turned on" or "TV turned off" trigger: the **Power** feature already
+triggers scenes, like any device.
+
+### Actions
+
+- **Open an app on the TV**: by its name as on the TV (`Netflix`,
+  `prime video`: case, accents and spaces do not matter). Output: the app
+  opened.
+- **Choose a TV input**: by its name (`HDMI 2`) or the label set on the TV
+  (`PS5`). Output: the input chosen.
+- **Send a remote control key**: Home, Back, arrows, OK, Input, volume, channel,
+  playback, colors, digits, one to ten times. Output: the presses sent.
+
+The first two turn the TV on first when needed. With several TVs, choose the
+TV in the action. The **Power**, **Volume** and **Channel** features are in the
+usual _Control a device_ action.
+
+### Scene ideas
+
+- **Movie night**: at 9 pm on Fridays, _Open an app on the TV_ `Netflix`, dim
+  the living room lights.
+- **The console is on**: trigger _TV: input, channel or app changed_, now on
+  screen _Input_, name `PS5`: set the lights to the game scene.
+- **Leaving home**: in the "everyone left" scene, turn the **Power** of the TVs
+  off.
+- **News**: at 8 pm, _Choose a TV input_ `Freebox`, then _Send a remote control
+  key_ `2`.
 
 ## Troubleshooting
 
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+- **"Not reached yet: turn the TV on once"**: the TV never answered. Check its
+  address, turn it on, and check that IP control is on.
+- **"Key or PIN refused"**: the pre-shared key differs from the one on the TV,
+  or the PIN has expired: click _Show a PIN on the TV_ again.
+- **"The TV asks for a pre-shared key or a PIN"**: neither is filled in.
+- **"No Bravia IP control at this address"**: another device answers there, or
+  IP control is off.
+- **The TV does not turn on**: turn on _Remote start_ on the TV. If its network
+  sleeps in standby, keep _Wake-on-LAN_ on; Wake-on-LAN must also be allowed on
+  the TV (often with Remote start), and it does not cross routers or VLANs.
+- **The volume buttons do nothing on the sound bar**: the integration then
+  sends the remote keys, which the sound bar follows over HDMI-CEC; the
+  **Volume** slider is the TV speakers only.
+- **An app is not found**: its name must be part of the name the TV shows;
+  the list is read again when a name is not found.
+- The logs of the integration (**Configuration** tab) say what each TV answers;
+  no key nor PIN is ever written there.
+
+## Limits
+
+- Developed without the hardware: the behaviors come from the Sony
+  documentation and from pybravia, not from a real TV.
+- Android TV and Google TV Bravia models with IP control. Older Bravia models
+  (before 2015) and the professional displays without IP control are not
+  supported.
+- The API does not tell which app is in front, nor the program of an HDMI
+  source.
+- Channels: those of the TV tuner (`tv:` sources), read once a day.
+- Everything stays on your local network: no cloud, no Sony account. The
+  integration only talks to the TVs you configured, and asks the Gladys core
+  for Wake-on-LAN packets.
+- Not affiliated with Sony. Bravia is a trademark of Sony Group Corporation.

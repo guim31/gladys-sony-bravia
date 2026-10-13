@@ -1,0 +1,16 @@
+{
+  "result": [
+    {
+      "source": "tv:dvbt",
+      "dispNum": "005",
+      "programMediaType": "tv",
+      "title": "France 5",
+      "triplet": "8442.6.1025",
+      "programTitle": "La Maison France 5",
+      "startDateTime": "2026-10-12T20:50:00+0200",
+      "durationSec": 3600,
+      "uri": "tv:dvbt?trip=8442.6.1025&srvName=France%205"
+    }
+  ],
+  "id": 103
+}
