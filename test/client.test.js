@@ -91,8 +91,13 @@ test('asking for a PIN shows it on the TV; a TV that needs none says so', async 
   const { tv, client } = setup({ auth: 'pin' }, { psk: null });
   assert.equal(await client.requestPin(), 'shown');
   assert.equal(tv.pinShown, 1);
+  // A TV in pre-shared key mode registers nobody: no cookie, no pairing.
   const { client: open } = setup({ auth: 'psk' }, { psk: null });
-  assert.equal(await open.requestPin(), 'accepted');
+  assert.equal(await open.requestPin(), 'unsupported');
+  // This Gladys registered already: the cookie is kept and used.
+  const { client: known } = setup({ auth: 'pin', pin: '0000' }, { psk: null });
+  assert.equal(await known.requestPin(), 'accepted');
+  assert.equal((await known.getApplicationList()).length, 8);
 });
 
 test('the errors of the API have a kind', async () => {
@@ -177,4 +182,22 @@ test('the auth cookie is read from the Set-Cookie headers', () => {
   assert.equal(authCookieOf({ 'set-cookie': 'other=1; auth=xyz' }), 'auth=xyz');
   assert.equal(authCookieOf({ 'set-cookie': ['session=1'] }), null);
   assert.equal(authCookieOf({}), null);
+});
+
+test('a refused PIN is not tried again on every read (each try shows a new PIN)', async () => {
+  const { tv, client, advance } = setup({ auth: 'pin', pin: '4821' }, { psk: null, pin: '1111' });
+  for (let read = 0; read < 5; read += 1) {
+    await assert.rejects(client.getSystemInformation(), kindIs(ERROR_KINDS.AUTH));
+    await assert.rejects(client.getApplicationList(), kindIs(ERROR_KINDS.AUTH));
+  }
+  assert.equal(tv.pinShown, 1);
+  advance(11 * 60_000);
+  await assert.rejects(client.getSystemInformation(), kindIs(ERROR_KINDS.AUTH));
+  assert.equal(tv.pinShown, 2, 'tried again later');
+});
+
+test('a registration answered with an error in its body is refused', async () => {
+  const { tv, client } = setup({ auth: 'pin' }, { psk: null, pin: '4821' });
+  tv.failNext = { method: 'actRegister', error: [40002, 'Encryption Failed'] };
+  await assert.rejects(client.getSystemInformation(), (err) => err.code === 40002);
 });

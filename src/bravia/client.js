@@ -61,6 +61,16 @@ const NETWORK_CODES = new Set([
   'EPIPE',
 ]);
 
+const INVALID_HEADER_CODES = new Set([
+  'ERR_INVALID_CHAR',
+  'ERR_HTTP_INVALID_HEADER_VALUE',
+  'ERR_INVALID_HTTP_TOKEN',
+]);
+
+// A refused PIN is not tried again before this: every registration with a
+// wrong PIN makes the TV show a new one, which the user may be typing.
+const PIN_RETRY_MS = 10 * 60_000;
+
 // Some TVs ignore the first IRCC key after a long idle time without any
 // error (dcnielsen90/python-bravia-tv#15): an empty request wakes them first.
 const IRCC_IDLE_MS = 10 * 60_000;
@@ -124,6 +134,7 @@ export class BraviaClient {
     this.now = now ?? (() => Date.now());
     this.cookie = null;
     this.registering = null;
+    this.pinRefusedAt = null;
     this.irccPath = 'ircc';
     this.irccAt = 0;
     this.sequence = 0;
@@ -153,6 +164,15 @@ export class BraviaClient {
         timeoutMs,
       });
     } catch (err) {
+      // A key with characters an HTTP header cannot carry (Node refuses it
+      // before sending): a wrong key, never a sleeping TV. Its value is not in
+      // the message.
+      if (INVALID_HEADER_CODES.has(err.code)) {
+        throw new BraviaError(
+          ERROR_KINDS.AUTH,
+          `${path}: the key holds characters a TV cannot read`,
+        );
+      }
       if (NETWORK_CODES.has(err.code) || err.name === 'AbortError') {
         throw new BraviaError(ERROR_KINDS.UNREACHABLE, `${path}: ${err.code ?? err.message}`);
       }
@@ -228,6 +248,9 @@ export class BraviaClient {
       if (err.kind !== ERROR_KINDS.AUTH || this.psk || !this.pin) {
         throw err;
       }
+      if (this.pinRefusedAt !== null && this.now() - this.pinRefusedAt < PIN_RETRY_MS) {
+        throw err;
+      }
       await this.register();
       return attempt();
     }
@@ -241,6 +264,13 @@ export class BraviaClient {
           throw new BraviaError(ERROR_KINDS.AUTH, 'actRegister: no authentication cookie');
         }
         this.cookie = cookie;
+        this.pinRefusedAt = null;
+      })
+      .catch((err) => {
+        if (err.kind === ERROR_KINDS.AUTH) {
+          this.pinRefusedAt = this.now();
+        }
+        throw err;
       })
       .finally(() => {
         this.registering = null;
@@ -280,17 +310,31 @@ export class BraviaClient {
         response.status,
       );
     }
+    let json = null;
+    try {
+      json = JSON.parse(response.body);
+    } catch {
+      // Some TVs answer an empty body: the cookie is what counts.
+    }
+    if (json && json.error) {
+      throw apiError('actRegister', json.error);
+    }
     return authCookieOf(response.headers);
   }
 
   /**
    * Ask the TV to show a PIN on screen (a registration with a wrong PIN
    * starts the pairing).
-   * @returns {Promise<'shown'|'accepted'>} `accepted`: the TV needs no PIN for this Gladys
+   * @returns {Promise<'shown'|'accepted'|'unsupported'>} `accepted`: this Gladys is
+   *   registered already (its cookie is kept); `unsupported`: the TV does not pair by PIN
    */
   async requestPin() {
     try {
-      await this.registerOnce(PAIRING_PIN);
+      const cookie = await this.registerOnce(PAIRING_PIN);
+      if (!cookie) {
+        return 'unsupported';
+      }
+      this.cookie = cookie;
       return 'accepted';
     } catch (err) {
       if (err.kind === ERROR_KINDS.AUTH && err.code === 401) {

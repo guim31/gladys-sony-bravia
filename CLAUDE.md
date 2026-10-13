@@ -238,7 +238,9 @@ la refonte de pro-bravia.sony.net ; pybravia, MIT, et l'intégration HA `braviat
   si. Une mauvaise clé ne se voit donc qu'aux lectures privées.
 - PSK : en-tête `X-Auth-PSK`. PIN : `accessControl.actRegister` avec `Authorization: Basic
 base64(":" + PIN)`, cookie `auth=…` (~14 jours) ; un `actRegister` avec `0000` fait afficher le
-  PIN. Le client se réenregistre avec le même PIN sur un 401/403.
+  PIN. Le client se réenregistre avec le même PIN sur un 401/403, mais **pas plus d'une fois par
+  10 min après un refus** : chaque `actRegister` à mauvais PIN fait afficher un nouveau code, celui que
+  l'utilisateur est peut-être en train de saisir.
 - Codes utiles : 7 « Illegal State » (une appli au premier plan : `getPlayingContentInfo` ne dit
   rien), 40005 « Display is turned off » (veille), 40800 (sortie audio non pilotable : barre de son
   → touches IRCC), 41001 (contenu inexistant), 41402 (lancement d'appli accepté sans fin connue :
@@ -274,5 +276,7 @@ base64(":" + PIN)`, cookie `auth=…` (~14 jours) ; un `actRegister` avec `0000`
   filtre texte (`name`) doit être écrit exactement comme l'envoie l'intégration.
 - Faux Gladys : `fake.transports` est une liste plate `{ device_external_id, transport }` ; le
   message d'une action de configuration est dans `ack.data.message`.
+- Une lecture qui chevauche une commande est jetée (`commandSeq`) : sinon elle republie l'état d'avant
+  la commande et déclenche un faux « contenu changé ».
 - `node --test` lance aussi `test/helpers/*.js` : un helper exécutable doit vérifier
   `NODE_TEST_CONTEXT` avant d'ouvrir un port.

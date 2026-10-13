@@ -100,3 +100,15 @@ test('the client against the fake TV over HTTP: PSK, PIN pairing, IRCC', async (
     assert.deepEqual(pinTv.registered, ['Gladys:test']);
   });
 });
+
+test('a key an HTTP header cannot carry is a refused key, not a sleeping TV', async () => {
+  const tv = new FakeBravia();
+  await withServer(createBraviaServer(tv), async (base) => {
+    const client = new BraviaClient({ baseUrl: base, psk: 'clé€' });
+    await assert.rejects(client.getSystemInformation(), (err) => {
+      assert.equal(err.kind, ERROR_KINDS.AUTH);
+      assert.ok(!err.message.includes('€'));
+      return true;
+    });
+  });
+});

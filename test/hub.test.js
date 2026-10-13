@@ -537,3 +537,84 @@ test('a slow feature command is acknowledged before the 5 s of Gladys, and goes 
   const failed = await setValue(world, 'channel', 42);
   assert.equal(failed.success, false);
 });
+
+test('a read that overlapped a command is dropped: no stale state, no false event', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  // The next read stops before reading the screen, until released.
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const request = world.network.request;
+  const slow = async (url, options) => {
+    if (options.body?.includes('getPlayingContentInfo')) {
+      await gate;
+    }
+    return request(url, options);
+  };
+  world.hub.records.get(1).client.request = slow;
+  const reading = world.hub.pollAll();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  await setValue(world, 'power', 0);
+  release();
+  await reading;
+  assert.deepEqual(
+    statesOf(world, 'power').map((item) => item.state),
+    [1, 0],
+  );
+  assert.deepEqual(events(world), []);
+  // The next read starts fresh and sees the TV off.
+  world.hub.records.get(1).client.request = request;
+  await world.hub.pollAll();
+  assert.equal(state(world, 'power'), 0);
+});
+
+test('turning the TV on from Gladys tells its first screen, origin Gladys', async (t) => {
+  const tv = new FakeBravia({ power: 'standby' });
+  const world = await createWorld({ tvs: { [URL_1]: tv } });
+  t.after(() => world.app.stop());
+  await setValue(world, 'power', 1);
+  await world.hub.pollAll();
+  assert.deepEqual(
+    events(world).map((event) => [event.data.kind, event.data.name, event.data.origin]),
+    [['input', 'PS5', ORIGINS.GLADYS]],
+  );
+});
+
+test('Wake-on-LAN refused by Gladys is an error, a rate limit is not', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  world.tv.online = false;
+  await world.hub.pollAll();
+  t.mock.method(world.gladys, 'wakeOnLan', async () => {
+    throw Object.assign(new Error('NETWORK_WAKE_NOT_DECLARED'), { status: 403 });
+  });
+  const refused = await setValue(world, 'power', 1);
+  assert.equal(refused.success, false);
+  assert.match(refused.error, /refused to send the Wake-on-LAN packet/);
+  world.gladys.wakeOnLan.mock.mockImplementation(async () => {
+    throw Object.assign(new Error('TOO_MANY_REQUESTS'), { status: 429 });
+  });
+  assert.equal((await setValue(world, 'power', 1)).success, true);
+});
+
+test('mute on a sound bar: the remote key', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  world.tv.soundBar = true;
+  world.tv.failNext = { method: 'setAudioMute', error: [40800, 'Target Not Supported'] };
+  assert.equal((await setValue(world, 'mute', 1)).success, true);
+  assert.deepEqual(world.tv.keys, ['Mute']);
+});
+
+test('another TV at an address: its own lists and remote codes are read', async (t) => {
+  const world = await createWorld();
+  t.after(() => world.app.stop());
+  const other = new FakeBravia({ system: 'system-information-consumer' });
+  other.apps = other.apps.slice(0, 2);
+  world.network.tvs[URL_1] = other;
+  await world.hub.rediscover();
+  assert.equal(featureOf(deviceOf(world), 'app').supported_options.length, 3);
+  assert.ok(other.requests.some((r) => r.method === 'getRemoteControllerInfo'));
+});

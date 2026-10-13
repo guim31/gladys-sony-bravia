@@ -121,6 +121,7 @@ export const PIN_TEXT = {
     notNeeded: 'This TV accepted Gladys without a PIN.',
     usePsk: 'A pre-shared key is set for this TV: no PIN is needed.',
     noAddress: (slot) => `Enter the address of TV ${slot} first, then save.`,
+    noPairing: 'This TV does not pair by PIN: set a pre-shared key in its IP control settings.',
   },
   fr: {
     shown: (slot) =>
@@ -128,6 +129,8 @@ export const PIN_TEXT = {
     notNeeded: 'Ce téléviseur a accepté Gladys sans code PIN.',
     usePsk: 'Une clé pré-partagée est saisie pour ce téléviseur : pas besoin de code PIN.',
     noAddress: (slot) => `Saisissez d'abord l'adresse du téléviseur ${slot}, puis enregistrez.`,
+    noPairing:
+      "Ce téléviseur ne s'appaire pas par code PIN : réglez une clé pré-partagée dans son contrôle IP.",
   },
   de: {
     shown: (slot) =>
@@ -135,6 +138,8 @@ export const PIN_TEXT = {
     notNeeded: 'Dieser Fernseher hat Gladys ohne PIN akzeptiert.',
     usePsk: 'Für diesen Fernseher ist ein Pre-Shared Key gesetzt: Keine PIN nötig.',
     noAddress: (slot) => `Gib zuerst die Adresse von Fernseher ${slot} ein und speichere.`,
+    noPairing:
+      'Dieser Fernseher koppelt nicht per PIN: Lege in seiner IP-Steuerung einen Pre-Shared Key fest.',
   },
   es: {
     shown: (slot) =>
@@ -142,6 +147,8 @@ export const PIN_TEXT = {
     notNeeded: 'Este televisor ha aceptado Gladys sin PIN.',
     usePsk: 'Hay una clave precompartida para este televisor: no hace falta ningún PIN.',
     noAddress: (slot) => `Introduzca primero la dirección del televisor ${slot} y guarde.`,
+    noPairing:
+      'Este televisor no se empareja por PIN: defina una clave precompartida en su control IP.',
   },
 };
 
@@ -158,6 +165,7 @@ export const ACTION_TEXT = {
     unknownKey: (key) => `Unknown key "${key}".`,
     notOn: 'The TV did not turn on: enable "Remote start" on the TV.',
     noWake: 'The TV does not answer, and its MAC address is unknown for Wake-on-LAN.',
+    wakeRefused: 'Gladys refused to send the Wake-on-LAN packet: see the Gladys logs.',
   },
   fr: {
     noTv: "Aucun téléviseur n'est configuré.",
@@ -171,6 +179,7 @@ export const ACTION_TEXT = {
     notOn:
       "Le téléviseur ne s'est pas allumé : activez « Démarrage à distance » sur le téléviseur.",
     noWake: 'Le téléviseur ne répond pas, et son adresse MAC est inconnue pour le Wake-on-LAN.',
+    wakeRefused: "Gladys a refusé d'envoyer le paquet Wake-on-LAN : voir les logs de Gladys.",
   },
   de: {
     noTv: 'Kein Fernseher ist konfiguriert.',
@@ -183,6 +192,8 @@ export const ACTION_TEXT = {
     unknownKey: (key) => `Unbekannte Taste „${key}“.`,
     notOn: 'Der Fernseher hat sich nicht eingeschaltet: Aktiviere „Fernstart“ am Fernseher.',
     noWake: 'Der Fernseher antwortet nicht, und seine MAC-Adresse ist für Wake-on-LAN unbekannt.',
+    wakeRefused:
+      'Gladys hat das Senden des Wake-on-LAN-Pakets abgelehnt: Sieh in den Gladys-Protokollen nach.',
   },
   es: {
     noTv: 'No hay ningún televisor configurado.',
@@ -195,6 +206,8 @@ export const ACTION_TEXT = {
     unknownKey: (key) => `Tecla desconocida «${key}».`,
     notOn: 'El televisor no se ha encendido: active «Encendido remoto» en el televisor.',
     noWake: 'El televisor no responde y su dirección MAC es desconocida para Wake-on-LAN.',
+    wakeRefused:
+      'Gladys se ha negado a enviar el paquete Wake-on-LAN: consulte los registros de Gladys.',
   },
 };
 

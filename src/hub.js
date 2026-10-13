@@ -216,6 +216,7 @@ export class BraviaHub {
       launchedApp: null,
       launchedAt: 0,
       ownChangeUntil: 0,
+      commandSeq: 0,
       polling: null,
       timers: new Set(),
       dropped: false,
@@ -289,15 +290,10 @@ export class BraviaHub {
     if (!record.identity) {
       return false;
     }
-    for (const other of this.records.values()) {
-      if (other === record) {
-        return false;
-      }
-      if (other.identity?.platformId === record.identity.platformId) {
-        return true;
-      }
-    }
-    return false;
+    return [...this.records.values()].some(
+      (other) =>
+        other.tv.slot < record.tv.slot && other.identity?.platformId === record.identity.platformId,
+    );
   }
 
   /** A record whose device exists for Gladys: identified, not a duplicate. */
@@ -358,6 +354,9 @@ export class BraviaHub {
   }
 
   saveRecord(record) {
+    if (record.dropped) {
+      return;
+    }
     this.saved.tvs[record.tv.slot] = {
       url: record.tv.url,
       identity: record.identity,
@@ -381,10 +380,36 @@ export class BraviaHub {
    * @returns {Promise<boolean>} whether the widgets show something new
    */
   poll(record, { full = false } = {}) {
-    record.polling ??= this.read(record, { full }).finally(() => {
-      record.polling = null;
-    });
-    return record.polling;
+    const current = record.polling;
+    // A read in flight answers for this one, unless a command ran since it
+    // started (its states are stale) or it does not read what `full` asks.
+    if (current && current.seq === record.commandSeq && (current.full || !full)) {
+      return current.promise;
+    }
+    const entry = { seq: record.commandSeq, full, promise: null };
+    const previous = current ? current.promise.catch(() => {}) : Promise.resolve();
+    entry.promise = previous
+      .then(() => {
+        entry.seq = record.commandSeq;
+        return this.read(record, { full });
+      })
+      .finally(() => {
+        if (record.polling === entry) {
+          record.polling = null;
+        }
+      });
+    record.polling = entry;
+    return entry.promise;
+  }
+
+  /** A command starts or ends: the reads in flight are stale. */
+  markCommand(record) {
+    record.commandSeq += 1;
+  }
+
+  /** Changes of the screen seen from now on are Gladys' own. */
+  ownChange(record) {
+    record.ownChangeUntil = this.now() + this.timings.ownChangeMs;
   }
 
   label(record) {
@@ -392,6 +417,8 @@ export class BraviaHub {
   }
 
   async read(record, { full }) {
+    const seq = record.commandSeq;
+    const stale = () => record.commandSeq !== seq;
     let power;
     try {
       power = await record.client.getPowerStatus();
@@ -399,7 +426,7 @@ export class BraviaHub {
       if (!err.kind) {
         throw err;
       }
-      return this.applyFailure(record, err);
+      return stale() ? false : this.applyFailure(record, err);
     }
     const now = this.now();
     let error = null;
@@ -419,10 +446,11 @@ export class BraviaHub {
       }
     };
 
+    let structureChanged = false;
     if (!record.identity || full || now - record.identityAt >= this.timings.identityMs) {
       const info = await attempt('system information', () => record.client.getSystemInformation());
       if (info) {
-        this.setIdentity(record, parseSystemInfo(info));
+        structureChanged = this.setIdentity(record, parseSystemInfo(info));
       }
     }
 
@@ -434,7 +462,16 @@ export class BraviaHub {
       const info = await attempt('playing content', () => record.client.getPlayingContentInfo());
       playing = info === undefined ? record.snapshot.playing : parsePlaying(info);
     }
-    await this.readLists(record, { full, active, attempt });
+    structureChanged =
+      (await this.readLists(record, { full, active, attempt })) || structureChanged;
+    if (stale()) {
+      // A command ran meanwhile: what was read may predate it.
+      return false;
+    }
+    if (structureChanged) {
+      // The options of the selects first, then the states that use them.
+      await this.publishDevices();
+    }
 
     if (!error && this.isDuplicate(record)) {
       error = { kind: 'duplicate', message: 'the same TV as another slot' };
@@ -489,12 +526,14 @@ export class BraviaHub {
     if (changed && record.identity) {
       this.saveRecord(record);
     }
+    return changed;
   }
 
+  /** @returns {boolean} whether the device changed */
   setIdentity(record, identity) {
     record.identityAt = this.now();
-    if (!identity.platformId) {
-      return;
+    if (!identity.platformId || record.dropped) {
+      return false;
     }
     const previous = record.identity;
     if (previous && previous.platformId !== identity.platformId) {
@@ -505,11 +544,21 @@ export class BraviaHub {
         this.published.delete(externalId);
       }
       record.launchedApp = null;
+      // Its lists and remote codes are another TV's: read them again.
+      record.inputs = [];
+      record.apps = [];
+      record.inputsAt = 0;
+      record.appsAt = 0;
+      record.codes = {};
+      record.codesRead = false;
+      record.channels = null;
     }
     if (JSON.stringify(previous) !== JSON.stringify(identity)) {
       record.identity = identity;
       this.saveRecord(record);
+      return true;
     }
+    return false;
   }
 
   async applySuccess(record, next) {
@@ -582,7 +631,9 @@ export class BraviaHub {
     if (previous.power === 'active' && sameContent(previous.playing, next.playing)) {
       return;
     }
-    if (previous.power === 'active' && !previous.playing) {
+    // Active but the screen unknown (a read that failed): no change to tell,
+    // unless Gladys has just turned it on.
+    if (previous.power === 'active' && !previous.playing && !previous.turnedOn) {
       return;
     }
     const playing = next.playing;
@@ -755,6 +806,7 @@ export class BraviaHub {
 
   /** Run a command on a TV; the API errors become a sentence for the user. */
   async command(record, fn) {
+    this.markCommand(record);
     try {
       return await fn(record.client);
     } catch (err) {
@@ -774,13 +826,16 @@ export class BraviaHub {
       );
       error.userFacing = true;
       throw error;
+    } finally {
+      // The reads that overlapped the command are stale too.
+      this.markCommand(record);
     }
   }
 
   /** The commands ran: publish the optimistic states, read the TV soon. */
   async afterCommand(record, { content = false } = {}) {
     if (content) {
-      record.ownChangeUntil = this.now() + this.timings.ownChangeMs;
+      this.ownChange(record);
     }
     await this.publishStates(record);
     this.refreshWidgets();
@@ -792,12 +847,19 @@ export class BraviaHub {
   }
 
   async wake(record) {
+    this.markCommand(record);
+    // What shows once it is awake is Gladys' doing.
+    this.ownChange(record);
     try {
       await this.gladys.wakeOnLan(record.identity.mac);
       logger.info(`${this.label(record)}: Wake-on-LAN sent`);
     } catch (err) {
       // 429: a wake was sent less than 2 s ago, which is just as good.
+      if (err.status === 429) {
+        return;
+      }
       logger.warn(`${this.label(record)}: Wake-on-LAN refused: ${err.message}`);
+      throw failure(this.language, 'wakeRefused');
     }
   }
 
@@ -816,6 +878,7 @@ export class BraviaHub {
       this.readLater(record, this.timings.afterPowerOnMs);
       return;
     }
+    this.markCommand(record);
     try {
       await record.client.setPowerStatus(true);
     } catch (err) {
@@ -840,7 +903,12 @@ export class BraviaHub {
       this.readLater(record, this.timings.afterPowerOnMs);
       return;
     }
-    record.snapshot = { ...record.snapshot, reachable: true, power: 'active' };
+    this.markCommand(record);
+    this.ownChange(record);
+    if (record.snapshot.power !== 'active') {
+      // `turnedOn`: the first screen read after this is a change to tell.
+      record.snapshot = { ...record.snapshot, reachable: true, power: 'active', turnedOn: true };
+    }
     await this.afterCommand(record);
     this.readLater(record, this.timings.afterPowerOnMs);
   }
@@ -855,7 +923,14 @@ export class BraviaHub {
     for (;;) {
       try {
         if ((await record.client.getPowerStatus()) === 'active') {
-          record.snapshot = { ...record.snapshot, reachable: true, power: 'active' };
+          if (record.snapshot.power !== 'active') {
+            record.snapshot = {
+              ...record.snapshot,
+              reachable: true,
+              power: 'active',
+              turnedOn: true,
+            };
+          }
           return;
         }
       } catch {
@@ -925,9 +1000,21 @@ export class BraviaHub {
 
   async toggleMute(record) {
     const known = record.snapshot.volume;
-    await this.command(record, (client) =>
-      known ? client.setAudioMute(!known.mute) : client.sendIrcc(codeOf('mute', record.codes)),
-    );
+    await this.command(record, async (client) => {
+      if (!known) {
+        await client.sendIrcc(codeOf('mute', record.codes));
+        return;
+      }
+      try {
+        await client.setAudioMute(!known.mute);
+      } catch (err) {
+        // A sound bar over HDMI-CEC only follows the remote keys.
+        if (err.code !== 40800) {
+          throw err;
+        }
+        await client.sendIrcc(codeOf('mute', record.codes));
+      }
+    });
     if (known) {
       record.snapshot = { ...record.snapshot, volume: { ...known, mute: !known.mute } };
     }
@@ -951,6 +1038,7 @@ export class BraviaHub {
     if (!channel) {
       throw failure(this.language, 'unknownChannel', number);
     }
+    this.ownChange(record);
     await this.command(record, (client) => client.setPlayContent(channel.uri));
     await this.afterCommand(record, { content: true });
     return channel;
@@ -998,6 +1086,7 @@ export class BraviaHub {
       throw failure(this.language, 'unknownInput', String(query).slice(0, 60));
     }
     await this.ensureOn(record);
+    this.ownChange(record);
     await this.command(record, (client) => client.setPlayContent(input.uri));
     record.launchedApp = null;
     // No optimistic screen: the next read sees the change and fires its event.
@@ -1024,6 +1113,7 @@ export class BraviaHub {
       throw failure(this.language, 'unknownApp', String(query).slice(0, 60));
     }
     await this.ensureOn(record);
+    this.ownChange(record);
     await this.command(record, (client) => client.setActiveApp(app.uri));
     record.launchedApp = app.uri;
     record.launchedAt = this.now();
@@ -1037,6 +1127,12 @@ export class BraviaHub {
       throw failure(this.language, 'unknownKey', String(key).slice(0, 30));
     }
     const times = Math.max(1, Math.min(MAX_KEY_REPEAT, Math.round(Number(repeat) || 1)));
+    const content = ['home', 'back', 'confirm', 'input', 'channel_up', 'channel_down'].includes(
+      key,
+    );
+    if (content) {
+      this.ownChange(record);
+    }
     await this.command(record, async (client) => {
       for (let press = 0; press < times; press += 1) {
         if (press > 0) {
@@ -1045,9 +1141,6 @@ export class BraviaHub {
         await client.sendIrcc(codeOf(key, record.codes));
       }
     });
-    const content = ['home', 'back', 'confirm', 'input', 'channel_up', 'channel_down'].includes(
-      key,
-    );
     await this.afterCommand(record, { content });
     return times;
   }
@@ -1159,7 +1252,13 @@ export class BraviaHub {
       return texts((text) => text.usePsk);
     }
     const outcome = await this.command(record, (client) => client.requestPin());
-    return texts((text) => (outcome === 'accepted' ? text.notNeeded : text.shown(number)));
+    return texts((text) =>
+      outcome === 'accepted'
+        ? text.notNeeded
+        : outcome === 'unsupported'
+          ? text.noPairing
+          : text.shown(number),
+    );
   }
 
   /** What the widgets show: one TV, or the first one. */
