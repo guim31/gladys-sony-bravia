@@ -1,6 +1,6 @@
 {
   "name": "gladys-sony-bravia",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Sony Bravia TV integration for Gladys Assistant: power, volume, inputs, apps, channels and remote keys over the local IP control API.",
   "type": "module",

@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-13
+
 ### Changed
 
 - Quieter logs: a TV switched off for the night, a slow command or the regular
@@ -42,5 +44,6 @@ the notes of the version's GitHub Release.
 - _Test the connection_ action, connection status per TV, documentation in
   English, French, German and Spanish.
 
-[Unreleased]: https://github.com/guim31/gladys-sony-bravia/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/guim31/gladys-sony-bravia/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/guim31/gladys-sony-bravia/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/guim31/gladys-sony-bravia/releases/tag/v1.0.0
