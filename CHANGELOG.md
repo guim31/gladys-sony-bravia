@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-13
+
 ### Added
 
 - Sony Bravia TVs (Android TV and Google TV, 2015 and later), up to three, over
@@ -27,3 +29,6 @@ the notes of the version's GitHub Release.
   turned on first) and _Send a remote control key_.
 - _Test the connection_ action, connection status per TV, documentation in
   English, French, German and Spanish.
+
+[Unreleased]: https://github.com/guim31/gladys-sony-bravia/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-sony-bravia/releases/tag/v1.0.0
