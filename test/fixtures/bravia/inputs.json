@@ -1,0 +1,42 @@
+{
+  "result": [
+    [
+      {
+        "uri": "extInput:hdmi?port=1",
+        "title": "HDMI 1",
+        "connection": true,
+        "label": "Freebox",
+        "icon": "meta:hdmi"
+      },
+      {
+        "uri": "extInput:hdmi?port=2",
+        "title": "HDMI 2",
+        "connection": true,
+        "label": "PS5",
+        "icon": "meta:game"
+      },
+      {
+        "uri": "extInput:hdmi?port=3",
+        "title": "HDMI 3/ARC",
+        "connection": true,
+        "label": "",
+        "icon": "meta:hdmi"
+      },
+      {
+        "uri": "extInput:hdmi?port=4",
+        "title": "HDMI 4",
+        "connection": false,
+        "label": "",
+        "icon": "meta:hdmi"
+      },
+      {
+        "uri": "extInput:component?port=1",
+        "title": "AV/Component",
+        "connection": false,
+        "label": "",
+        "icon": "meta:component"
+      }
+    ]
+  ],
+  "id": 105
+}

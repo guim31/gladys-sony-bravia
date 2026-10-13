@@ -31,15 +31,23 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+index.js                          SDK wiring only: registerHandlers, shutdown, connect()
+src/app.js                        every SDK handler, wired to the hub (the tests use it too)
+src/hub.js                        BraviaHub: one record per TV, poll timer, states, scene event, commands
+src/devices.js                    the device of a TV: features, names, option lists, state values
+src/bravia/client.js              Bravia IP control: JSON-RPC (/sony/<service>), IRCC SOAP, PSK / PIN
+src/bravia/http.js                the only network code (node:http / node:https), a test seam
+src/bravia/model.js               parsers of the answers, name matching of inputs and apps
+src/bravia/keys.js                remote keys: our stable keys, Sony names, fallback IRCC codes, labels
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+src/widgets.js                    dashboard widgets: remote, keys, shortcuts (manifest `widgets`)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+src/store.js                      /data/bravia-state.json: client id, identity and lists of each TV
+src/texts.js                      messages in four languages (status, errors, reports)
+gladys-assistant-integration.json manifest: name, config_schema, actions, scenes, widgets...
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys, same sections
+test/helpers/fakeBravia.js        in-memory TV (Sony documentation answers), also served over HTTP
+test/helpers/braviaServer.js      the fake TV on a real HTTP port (Docker checks)
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
@@ -70,8 +78,10 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in four languages (English, French, German with
+  "du", Spanish with "usted"): action messages, manifest texts, widget
+  contents, feature names, and `docs/{en,fr,de,es}.md` with the same sections.
+  `test/i18n.test.js` checks them.
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -213,3 +223,60 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Sony Bravia (propre à cette intégration)
+
+**API** (documentation Sony « BRAVIA Professional Displays », archivée sur web.archive.org depuis
+la refonte de pro-bravia.sony.net ; pybravia, MIT, et l'intégration HA `braviatv` pour l'usage) :
+
+- JSON-RPC `POST /sony/<service>` (`system`, `audio`, `avContent`, `appControl`, `accessControl`),
+  corps `{ method, id, params: [ {...} ], version: "1.0" }`, réponse `{ result: [...] }` ou
+  `{ error: [code, texte] }` **avec un HTTP 200**. 401/403 : authentification.
+- Niveaux d'authentification : `getPowerStatus`, `getVolumeInformation`,
+  `getRemoteControllerInfo`, `getCurrentExternalInputsStatus` n'en demandent pas ;
+  `getSystemInformation`, `getPlayingContentInfo`, `getApplicationList` et toutes les commandes,
+  si. Une mauvaise clé ne se voit donc qu'aux lectures privées.
+- PSK : en-tête `X-Auth-PSK`. PIN : `accessControl.actRegister` avec `Authorization: Basic
+base64(":" + PIN)`, cookie `auth=…` (~14 jours) ; un `actRegister` avec `0000` fait afficher le
+  PIN. Le client se réenregistre avec le même PIN sur un 401/403, mais **pas plus d'une fois par
+  10 min après un refus** : chaque `actRegister` à mauvais PIN fait afficher un nouveau code, celui que
+  l'utilisateur est peut-être en train de saisir.
+- Codes utiles : 7 « Illegal State » (une appli au premier plan : `getPlayingContentInfo` ne dit
+  rien), 40005 « Display is turned off » (veille), 40800 (sortie audio non pilotable : barre de son
+  → touches IRCC), 41001 (contenu inexistant), 41402 (lancement d'appli accepté sans fin connue :
+  succès).
+- IRCC : `POST /sony/ircc` SOAP `X_SendIRCC`, endpoint `/sony/IRCC` sur certains modèles (404 →
+  basculer la casse) ; certains téléviseurs ignorent la première touche après ~13 min d'inactivité :
+  requête vide d'abord.
+- **L'API ne dit jamais quelle application est au premier plan.** La liste `app` montre l'appli
+  ouverte par Gladys jusqu'au prochain changement d'écran ; le déclencheur ne voit pas « appli →
+  appli ». Ne pas promettre « application lancée ».
+- Beaucoup de Bravia coupent le réseau en veille : `getPowerStatus` ne répond plus. On publie alors
+  « éteint », transport `unreachable`, sans erreur de connexion si le téléviseur a déjà répondu, et
+  l'allumage passe par `gladys.wakeOnLan(mac)` (`network_wake: true`), la MAC venant de
+  `getSystemInformation`.
+- Identité = numéro de série (`sn-…`), sinon MAC (`mac-…`) : l'adresse IP n'est qu'un moyen de
+  joindre. Identité et listes sont gardées dans `/data` : l'appareil existe au démarrage même si le
+  téléviseur dort.
+
+**Pièges du cœur rencontrés ici**
+
+- `text/select` (5.1.0+) : options en `supported_options` `[{ value, label, sort_order }]`, valeurs
+  **chaînes** permises seulement sur ce couple (sinon 400), uniques, libellés non vides ; l'état se
+  publie en `{ text }`. Republier un appareil déjà créé met à jour ses options en silence. Le faux
+  Gladys du SDK **ne valide pas** `supported_options` : `test/gladys-rules.test.js` le fait.
+- `television/volume-mute`, `volume-up`, `channel-up`… sont des **boutons poussoirs** dans le front
+  (sans état) ; seuls `binary`, `volume` et `channel` sont continus. Un état de sourdine n'a pas de
+  couple : il est montré par le widget.
+- Le cœur n'attend l'acquittement d'une **commande d'appareil** (`onSetValue`) que **5 s**
+  (`COMMAND_TIMEOUT_MS`, `externalIntegration/constants.js`), contre `timeout_seconds` pour les
+  actions, actions de scène et boutons de widget. Allumer un téléviseur puis changer d'entrée en prend
+  davantage : `hub.setValue` acquitte au bout de 4 s et laisse la commande finir (échec journalisé).
+- Les filtres d'un déclencheur font une **égalité stricte** (`multi_select` : appartenance) : un
+  filtre texte (`name`) doit être écrit exactement comme l'envoie l'intégration.
+- Faux Gladys : `fake.transports` est une liste plate `{ device_external_id, transport }` ; le
+  message d'une action de configuration est dans `ack.data.message`.
+- Une lecture qui chevauche une commande est jetée (`commandSeq`) : sinon elle republie l'état d'avant
+  la commande et déclenche un faux « contenu changé ».
+- `node --test` lance aussi `test/helpers/*.js` : un helper exécutable doit vérifier
+  `NODE_TEST_CONTEXT` avant d'ouvrir un port.

@@ -1,0 +1,195 @@
+{
+  "result": [
+    {
+      "bundled": true,
+      "type": "IR_REMOTE_BUNDLE_TYPE_AEP"
+    },
+    [
+      {
+        "name": "Power",
+        "value": "AAAAAQAAAAEAAAAVAw=="
+      },
+      {
+        "name": "Input",
+        "value": "AAAAAQAAAAEAAAAlAw=="
+      },
+      {
+        "name": "SyncMenu",
+        "value": "AAAAAgAAABoAAABYAw=="
+      },
+      {
+        "name": "Hdmi1",
+        "value": "AAAAAgAAABoAAABaAw=="
+      },
+      {
+        "name": "Hdmi2",
+        "value": "AAAAAgAAABoAAABbAw=="
+      },
+      {
+        "name": "Hdmi3",
+        "value": "AAAAAgAAABoAAABcAw=="
+      },
+      {
+        "name": "Hdmi4",
+        "value": "AAAAAgAAABoAAABdAw=="
+      },
+      {
+        "name": "Num1",
+        "value": "AAAAAQAAAAEAAAAAAw=="
+      },
+      {
+        "name": "Num2",
+        "value": "AAAAAQAAAAEAAAABAw=="
+      },
+      {
+        "name": "Num3",
+        "value": "AAAAAQAAAAEAAAACAw=="
+      },
+      {
+        "name": "Num4",
+        "value": "AAAAAQAAAAEAAAADAw=="
+      },
+      {
+        "name": "Num5",
+        "value": "AAAAAQAAAAEAAAAEAw=="
+      },
+      {
+        "name": "Num6",
+        "value": "AAAAAQAAAAEAAAAFAw=="
+      },
+      {
+        "name": "Num7",
+        "value": "AAAAAQAAAAEAAAAGAw=="
+      },
+      {
+        "name": "Num8",
+        "value": "AAAAAQAAAAEAAAAHAw=="
+      },
+      {
+        "name": "Num9",
+        "value": "AAAAAQAAAAEAAAAIAw=="
+      },
+      {
+        "name": "Num0",
+        "value": "AAAAAQAAAAEAAAAJAw=="
+      },
+      {
+        "name": "Dot(.)",
+        "value": "AAAAAgAAAJcAAAAdAw=="
+      },
+      {
+        "name": "CC",
+        "value": "AAAAAgAAAJcAAAAoAw=="
+      },
+      {
+        "name": "Red",
+        "value": "AAAAAgAAAJcAAAAlAw=="
+      },
+      {
+        "name": "Green",
+        "value": "AAAAAgAAAJcAAAAmAw=="
+      },
+      {
+        "name": "Yellow",
+        "value": "AAAAAgAAAJcAAAAnAw=="
+      },
+      {
+        "name": "Blue",
+        "value": "AAAAAgAAAJcAAAAkAw=="
+      },
+      {
+        "name": "Up",
+        "value": "AAAAAQAAAAEAAAB0Aw=="
+      },
+      {
+        "name": "Down",
+        "value": "AAAAAQAAAAEAAAB1Aw=="
+      },
+      {
+        "name": "Right",
+        "value": "AAAAAQAAAAEAAAAzAw=="
+      },
+      {
+        "name": "Left",
+        "value": "AAAAAQAAAAEAAAA0Aw=="
+      },
+      {
+        "name": "Confirm",
+        "value": "AAAAAQAAAAEAAABlAw=="
+      },
+      {
+        "name": "Help",
+        "value": "AAAAAgAAAMQAAABNAw=="
+      },
+      {
+        "name": "Display",
+        "value": "AAAAAQAAAAEAAAA6Aw=="
+      },
+      {
+        "name": "Options",
+        "value": "AAAAAgAAAJcAAAA2Aw=="
+      },
+      {
+        "name": "Back",
+        "value": "AAAAAgAAAJcAAAAjAw=="
+      },
+      {
+        "name": "Home",
+        "value": "AAAAAQAAAAEAAABgAw=="
+      },
+      {
+        "name": "VolumeUp",
+        "value": "AAAAAQAAAAEAAAASAw=="
+      },
+      {
+        "name": "VolumeDown",
+        "value": "AAAAAQAAAAEAAAATAw=="
+      },
+      {
+        "name": "Mute",
+        "value": "AAAAAQAAAAEAAAAUAw=="
+      },
+      {
+        "name": "Audio",
+        "value": "AAAAAQAAAAEAAAAXAw=="
+      },
+      {
+        "name": "ChannelUp",
+        "value": "AAAAAQAAAAEAAAAQAw=="
+      },
+      {
+        "name": "ChannelDown",
+        "value": "AAAAAQAAAAEAAAARAw=="
+      },
+      {
+        "name": "Play",
+        "value": "AAAAAgAAAJcAAAAaAw=="
+      },
+      {
+        "name": "Pause",
+        "value": "AAAAAgAAAJcAAAAZAw=="
+      },
+      {
+        "name": "Stop",
+        "value": "AAAAAgAAAJcAAAAYAw=="
+      },
+      {
+        "name": "FlashPlus",
+        "value": "AAAAAgAAAJcAAAB4Aw=="
+      },
+      {
+        "name": "FlashMinus",
+        "value": "AAAAAgAAAJcAAAB5Aw=="
+      },
+      {
+        "name": "Prev",
+        "value": "AAAAAgAAAJcAAAA8Aw=="
+      },
+      {
+        "name": "Next",
+        "value": "AAAAAgAAAJcAAAA9Aw=="
+      }
+    ]
+  ],
+  "id": 54
+}

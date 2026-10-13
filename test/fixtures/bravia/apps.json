@@ -1,0 +1,47 @@
+{
+  "result": [
+    [
+      {
+        "title": "YouTube",
+        "uri": "com.sony.dtv.com.google.android.youtube.tv.com.google.android.apps.youtube.tv.activity.ShellActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.com.google.android.youtube.tv.com.google.android.apps.youtube.tv.activity.ShellActivity.png"
+      },
+      {
+        "title": "Screen mirroring",
+        "uri": "com.sony.dtv.screnmirroring.com.screnmirroring.com.StartScreenMirroringHomeActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.screnmirroring.com.screnmirroring.com.StartScreenMirroringHomeActivity.png"
+      },
+      {
+        "title": "Netflix",
+        "uri": "com.sony.dtv.com.netflix.ninja.com.netflix.ninja.MainActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.com.netflix.ninja.com.netflix.ninja.MainActivity.png"
+      },
+      {
+        "title": "Prime Video",
+        "uri": "com.sony.dtv.com.amazon.amazonvideo.livingroom.com.amazon.ignition.IgnitionActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.com.amazon.amazonvideo.livingroom.com.amazon.ignition.IgnitionActivity.png"
+      },
+      {
+        "title": "Disney+",
+        "uri": "com.sony.dtv.com.disney.disneyplus.com.bamtechmedia.dominguez.main.MainActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.com.disney.disneyplus.com.bamtechmedia.dominguez.main.MainActivity.png"
+      },
+      {
+        "title": "France.tv",
+        "uri": "com.sony.dtv.fr.francetv.pluzz.fr.francetv.androidtv.main.MainActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.fr.francetv.pluzz.fr.francetv.androidtv.main.MainActivity.png"
+      },
+      {
+        "title": "Spotify",
+        "uri": "com.sony.dtv.com.spotify.tv.android.com.spotify.tv.android.SpotifyTVActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.com.spotify.tv.android.com.spotify.tv.android.SpotifyTVActivity.png"
+      },
+      {
+        "title": "TV",
+        "uri": "com.sony.dtv.com.sony.dtv.tvx.com.sony.dtv.tvx.MainActivity",
+        "icon": "http://192.0.2.20/DIAL/icon/com.sony.dtv.com.sony.dtv.tvx.com.sony.dtv.tvx.MainActivity.png"
+      }
+    ]
+  ],
+  "id": 60
+}
