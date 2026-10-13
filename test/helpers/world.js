@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
 // A complete test world: the SDK's fake Gladys, fake Bravia TVs on a fake
 // network, a temporary /data and a manual clock, with the integration wired
-// on top through registerHandlers. No timer runs: the tests read the TVs
-// with `world.hub.pollAll()`, and the waits of the commands are instant.
+// on top through registerHandlers. No timer runs (unless `timers`, with mocked
+// timers): the tests read the TVs with `world.hub.pollAll()`, and the waits
+// of the commands are instant.
 // -----------------------------------------------------------------------------
 
 import { mkdtempSync } from 'node:fs';
@@ -52,13 +53,14 @@ export async function createWorld({
   connect = true,
   dataDir = mkdtempSync(join(tmpdir(), 'gladys-bravia-')),
   timings = {},
+  timers = false,
 } = {}) {
   const network = createNetwork(tvs ?? { [URL_1]: new FakeBravia() });
   const gladys = createFakeGladys({ config, devices });
   const app = registerHandlers(gladys, {
     store: new Store(dataDir),
     request: network.request,
-    timers: false,
+    timers,
     timings,
     now: clock.now,
     sleep: clock.sleep,
