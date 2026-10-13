@@ -4,7 +4,7 @@
 // where it plays the TV next to the integration container:
 //
 //   node test/helpers/braviaServer.js            # port 80, or $PORT
-//   BRAVIA_AUTH=pin node test/helpers/braviaServer.js
+//   BRAVIA_AUTH=pin BRAVIA_SYSTEM=system-information-consumer node test/helpers/braviaServer.js
 // -----------------------------------------------------------------------------
 
 import http from 'node:http';
@@ -38,6 +38,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url) && !process.env.NODE_TEST
     psk: process.env.BRAVIA_PSK || '0000-secret',
     pin: process.env.BRAVIA_PIN || '4821',
     power: process.env.BRAVIA_POWER === 'standby' ? 'standby' : 'active',
+    system: process.env.BRAVIA_SYSTEM || 'system-information',
   });
   const port = Number(process.env.PORT || 80);
   createBraviaServer(tv).listen(port, () => {

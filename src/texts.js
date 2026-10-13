@@ -45,6 +45,12 @@ export const ERROR_TEXT = {
     de: 'noch nicht erreicht: Schalte den Fernseher einmal ein',
     es: 'aún no se ha conectado: encienda el televisor una vez',
   },
+  duplicate: {
+    en: 'the same TV as another slot: empty this one',
+    fr: "le même téléviseur qu'un autre emplacement : videz celui-ci",
+    de: 'derselbe Fernseher wie in einem anderen Platz: Leere diesen',
+    es: 'el mismo televisor que otra posición: vacíe esta',
+  },
   [ERROR_KINDS.AUTH]: {
     en: 'key or PIN refused',
     fr: 'clé ou code PIN refusé',

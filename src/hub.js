@@ -279,10 +279,34 @@ export class BraviaHub {
 
   // --- Devices -----------------------------------------------------------------
 
+  /**
+   * The same TV configured twice (its IP in one slot, its name in another):
+   * only the first slot speaks for it, the other one is reported.
+   */
+  isDuplicate(record) {
+    if (!record.identity) {
+      return false;
+    }
+    for (const other of this.records.values()) {
+      if (other === record) {
+        return false;
+      }
+      if (other.identity?.platformId === record.identity.platformId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** A record whose device exists for Gladys: identified, not a duplicate. */
+  isPublished(record) {
+    return Boolean(record.identity) && !this.isDuplicate(record);
+  }
+
   /** Publish the TVs that answered once; only when something changed. */
   async publishDevices() {
     const devices = [...this.records.values()]
-      .filter((record) => record.identity)
+      .filter((record) => this.isPublished(record))
       .map((record) => buildDevice(this.gladys, record, this.language));
     const key = JSON.stringify(devices);
     if (key === this.devicesKey) {
@@ -410,6 +434,9 @@ export class BraviaHub {
     }
     await this.readLists(record, { full, active, attempt });
 
+    if (!error && this.isDuplicate(record)) {
+      error = { kind: 'duplicate', message: 'the same TV as another slot' };
+    }
     if (error) {
       const known = record.error?.kind;
       record.error = { kind: error.kind, message: error.message };
@@ -495,9 +522,7 @@ export class BraviaHub {
       JSON.stringify(previous.playing) !== JSON.stringify(next.playing);
     await this.contentTransition(record, previous, next);
     record.snapshot = { reachable: true, ...next };
-    if (record.identity) {
-      await this.publishStates(record);
-    }
+    await this.publishStates(record);
     return widgetChanged;
   }
 
@@ -527,9 +552,7 @@ export class BraviaHub {
         logger.warn(`${this.label(record)}: ${err.message}`);
       }
     }
-    if (record.identity) {
-      await this.publishStates(record);
-    }
+    await this.publishStates(record);
     return previous.reachable !== record.snapshot.reachable || wasError !== record.error?.kind;
   }
 
@@ -585,7 +608,7 @@ export class BraviaHub {
   }
 
   async fire(key, record, data) {
-    if (!record.identity) {
+    if (!this.isPublished(record)) {
       return;
     }
     try {
@@ -602,7 +625,7 @@ export class BraviaHub {
   // --- Publishing to Gladys ----------------------------------------------------------
 
   async publishStates(record, { force = false } = {}) {
-    if (!record.identity) {
+    if (!this.isPublished(record)) {
       return;
     }
     const states = [];
@@ -640,7 +663,7 @@ export class BraviaHub {
   async publishTransports() {
     const entries = [];
     for (const record of this.records.values()) {
-      if (!record.identity || record.snapshot.reachable === null) {
+      if (!this.isPublished(record) || record.snapshot.reachable === null) {
         continue;
       }
       const externalId = deviceIds(this.gladys, record.identity.platformId).device;

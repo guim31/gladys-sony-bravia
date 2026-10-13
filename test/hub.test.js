@@ -489,3 +489,28 @@ test('a reconnection to Gladys sends everything again', async (t) => {
   assert.ok(world.fake.states.length > count);
   assert.equal(world.fake.discoveredDevices.length, 1);
 });
+
+test('the same TV in two slots: one device, the second slot reported', async (t) => {
+  const tv = new FakeBravia();
+  const world = await createWorld({
+    config: {
+      tv_1_host: '192.0.2.20',
+      tv_1_psk: PSK,
+      tv_2_host: '192.0.2.21',
+      tv_2_psk: PSK,
+      language: 'en',
+    },
+    tvs: { [URL_1]: tv, [URL_2]: tv },
+  });
+  t.after(() => world.app.stop());
+  assert.equal(world.fake.discoveredDevices.length, 1);
+  assert.equal(world.fake.connectionStatus.connected, true);
+  assert.equal(
+    world.fake.connectionStatus.message.en,
+    'BRAVIA FW-55BZ35F: the same TV as another slot: empty this one',
+  );
+  tv.show(TF1);
+  await world.hub.pollAll();
+  assert.equal(events(world).length, 1, 'one event, not two');
+  assert.equal(new Set(world.fake.transports.map((entry) => entry.device_external_id)).size, 1);
+});
