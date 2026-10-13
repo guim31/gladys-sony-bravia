@@ -10,6 +10,18 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Changed
+
+- Quieter logs: a TV switched off for the night, a slow command or the regular
+  reads no longer write anything at the default level. A lasting problem (a
+  refused key, Gladys not accepting the states) is logged once, and once more
+  when it is solved.
+
+### Fixed
+
+- A TV with a refused key no longer shows as connected while it sleeps, only to
+  report the same error again each time it is switched on.
+
 ## [1.0.0] - 2026-10-13
 
 ### Added

@@ -95,6 +95,8 @@ const MAX_STATES_PER_REQUEST = 100;
 const MAX_KEY_REPEAT = 10;
 // Failures of a read that do not mean "this TV is misconfigured".
 const TRANSIENT = new Set([ERROR_KINDS.UNREACHABLE, ERROR_KINDS.BUSY, ERROR_KINDS.TURNED_OFF]);
+// Only a read that needs the key can tell these are gone.
+const KEY_ERRORS = new Set([ERROR_KINDS.AUTH, ERROR_KINDS.NO_KEY]);
 
 const signature = (tv) => JSON.stringify([tv.url, tv.psk, tv.pin]);
 const emptySnapshot = () => ({ reachable: null, power: null, volume: null, playing: null });
@@ -129,6 +131,8 @@ export class BraviaHub {
     this.saved = { clientId: null, tvs: {} };
     this.pollTimer = null;
     this.stopped = false;
+    /** What keeps failing (a Gladys call, the poll): logged once, not each time. */
+    this.failing = new Set();
   }
 
   get language() {
@@ -213,6 +217,8 @@ export class BraviaHub {
       appsAt: 0,
       snapshot: emptySnapshot(),
       error: null,
+      // The kind of the last problem logged as a warning, until it is gone.
+      warned: null,
       launchedApp: null,
       launchedAt: 0,
       ownChangeUntil: 0,
@@ -256,8 +262,9 @@ export class BraviaHub {
     this.pollTimer = setTimeout(async () => {
       try {
         await this.pollAll();
+        this.recovered('Poll');
       } catch (err) {
-        logger.error('Poll failed', err);
+        this.failedOnce('Poll', 'error', 'Poll failed', err);
       }
       this.schedulePoll();
     }, this.config.pollIntervalMs);
@@ -273,7 +280,7 @@ export class BraviaHub {
         record.timers.delete(timer);
         this.poll(record)
           .then((changed) => this.afterChanges(changed))
-          .catch((err) => logger.error('Read failed', err));
+          .catch((err) => this.failedOnce('Poll', 'error', 'Read failed', err));
       }, delay);
       timer.unref?.();
       record.timers.add(timer);
@@ -314,8 +321,9 @@ export class BraviaHub {
       // Even an empty list: the Discovery tab then shows no stale TV.
       await this.gladys.publishDiscoveredDevices(devices);
       this.devicesKey = key;
+      this.recovered('Devices');
     } catch (err) {
-      logger.warn(`Devices refused: ${err.message}`);
+      this.failedOnce('Devices', 'warn', `Devices refused: ${err.message}`);
     }
   }
 
@@ -416,9 +424,56 @@ export class BraviaHub {
     return `TV ${record.tv.slot} (${tvName(record)})`;
   }
 
+  /**
+   * Something that fails at every try (Gladys restarting, a bug in a read):
+   * one line at the first failure, debug while it lasts, one line once it
+   * works again (`recovered`).
+   */
+  failedOnce(key, level, ...args) {
+    if (this.failing.has(key)) {
+      logger.debug(...args);
+      return;
+    }
+    this.failing.add(key);
+    logger[level](...args);
+  }
+
+  recovered(key) {
+    if (this.failing.delete(key)) {
+      logger.info(`${key}: working again`);
+    }
+  }
+
+  /**
+   * The problem of a TV, shown in the connection status. A warning when a
+   * real problem appears (a refused key, not a Bravia...), one line when it
+   * is gone; a TV asleep or busy is no problem: debug only.
+   */
+  setError(record, error) {
+    const previous = record.error;
+    record.error = error ? { kind: error.kind, message: error.message } : null;
+    if (previous?.kind === record.error?.kind) {
+      return;
+    }
+    if (!record.error) {
+      if (record.warned) {
+        record.warned = null;
+        logger.info(`${this.label(record)}: answers normally again`);
+      }
+    } else if (TRANSIENT.has(record.error.kind)) {
+      logger.debug(`${this.label(record)}: ${record.error.message}`);
+    } else {
+      record.warned = record.error.kind;
+      logger.warn(`${this.label(record)}: ${record.error.message}`);
+    }
+  }
+
   async read(record, { full }) {
     const seq = record.commandSeq;
     const stale = () => record.commandSeq !== seq;
+    // Whether a read that needs the key was tried (a TV in standby is only
+    // asked its power status, which proves nothing about the key).
+    let checked = false;
     let power;
     try {
       power = await record.client.getPowerStatus();
@@ -432,6 +487,7 @@ export class BraviaHub {
     let error = null;
     // Keep the first configuration problem of this read, ignore the passing ones.
     const attempt = async (what, fn) => {
+      checked = true;
       try {
         return await fn();
       } catch (err) {
@@ -476,14 +532,8 @@ export class BraviaHub {
     if (!error && this.isDuplicate(record)) {
       error = { kind: 'duplicate', message: 'the same TV as another slot' };
     }
-    if (error) {
-      const known = record.error?.kind;
-      record.error = { kind: error.kind, message: error.message };
-      if (known !== error.kind) {
-        logger.warn(`${this.label(record)}: ${error.message}`);
-      }
-    } else {
-      record.error = null;
+    if (error || checked || !KEY_ERRORS.has(record.error?.kind)) {
+      this.setError(record, error);
     }
     return this.applySuccess(record, { power, volume, playing });
   }
@@ -584,8 +634,14 @@ export class BraviaHub {
     const wasError = record.error?.kind;
     const previous = record.snapshot;
     if (err.kind === ERROR_KINDS.UNREACHABLE) {
-      // A TV whose network sleeps with it does not answer at all when off.
-      record.error = record.identity ? null : { kind: 'notReached', message: err.message };
+      // A TV whose network sleeps with it does not answer at all when off:
+      // normal every night, so not an error, and only a debug line. A refused
+      // key stays reported until a read proves otherwise.
+      if (record.identity) {
+        this.setError(record, KEY_ERRORS.has(wasError) ? record.error : null);
+      } else {
+        this.setError(record, { kind: 'notReached', message: `no answer (${err.message})` });
+      }
       record.snapshot = {
         reachable: false,
         power: record.identity ? 'standby' : null,
@@ -594,14 +650,11 @@ export class BraviaHub {
       };
       record.launchedApp = null;
       if (previous.reachable !== false) {
-        logger.info(`${this.label(record)}: no answer (${err.message})`);
+        logger.debug(`${this.label(record)}: no answer (${err.message})`);
       }
     } else {
       // Something answered, but not as expected: keep the last known states.
-      record.error = { kind: err.kind, message: err.message };
-      if (wasError !== err.kind) {
-        logger.warn(`${this.label(record)}: ${err.message}`);
-      }
+      this.setError(record, err);
     }
     await this.publishStates(record);
     return previous.reachable !== record.snapshot.reachable || wasError !== record.error?.kind;
@@ -671,8 +724,10 @@ export class BraviaHub {
         ...data,
       });
     } catch (err) {
-      logger.warn(`Scene event ${key} refused: ${err.message}`);
+      this.failedOnce('Scene events', 'warn', `Scene event ${key} refused: ${err.message}`);
+      return;
     }
+    this.recovered('Scene events');
   }
 
   // --- Publishing to Gladys ----------------------------------------------------------
@@ -699,8 +754,13 @@ export class BraviaHub {
         for (const state of batch) {
           this.published.set(state.device_feature_external_id, state.text ?? state.state);
         }
+        this.recovered('States');
       } catch (err) {
-        logger.warn(`States of ${this.label(record)} refused: ${err.message}`);
+        this.failedOnce(
+          'States',
+          'warn',
+          `States of ${this.label(record)} refused: ${err.message}`,
+        );
       }
     }
   }
@@ -735,8 +795,9 @@ export class BraviaHub {
       for (const entry of entries) {
         this.transports.set(entry.external_id, entry.transport);
       }
+      this.recovered('Transports');
     } catch (err) {
-      logger.warn(`Transports refused: ${err.message}`);
+      this.failedOnce('Transports', 'warn', `Transports refused: ${err.message}`);
     }
   }
 
@@ -776,8 +837,9 @@ export class BraviaHub {
     try {
       await this.gladys.setConnectionStatus(status.connected, status.message);
       this.connection = key;
+      this.recovered('Connection status');
     } catch (err) {
-      logger.warn(`Connection status refused: ${err.message}`);
+      this.failedOnce('Connection status', 'warn', `Connection status refused: ${err.message}`);
     }
   }
 
@@ -1161,7 +1223,7 @@ export class BraviaHub {
     try {
       const outcome = await Promise.race([work.then(() => 'done'), late]);
       if (outcome === 'late') {
-        logger.info(`${feature.external_id}: still running, acknowledged`);
+        logger.debug(`${feature.external_id}: still running, acknowledged`);
         work.catch((err) => logger.warn(`${feature.external_id}: ${err.message}`));
       }
     } finally {
