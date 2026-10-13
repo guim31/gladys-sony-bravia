@@ -514,3 +514,26 @@ test('the same TV in two slots: one device, the second slot reported', async (t)
   assert.equal(events(world).length, 1, 'one event, not two');
   assert.equal(new Set(world.fake.transports.map((entry) => entry.device_external_id)).size, 1);
 });
+
+test('a slow feature command is acknowledged before the 5 s of Gladys, and goes on', async (t) => {
+  const tv = new FakeBravia({ power: 'standby' });
+  const world = await createWorld({ tvs: { [URL_1]: tv }, timings: { featureAckMs: 20 } });
+  t.after(() => world.app.stop());
+  // The TV answers slowly: every request takes 50 ms.
+  const request = world.network.request;
+  world.network.request = async (...args) => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return request(...args);
+  };
+  world.hub.records.get(1).client.request = world.network.request;
+  const ack = await setValue(world, 'input', HDMI_1);
+  assert.equal(ack.success, true);
+  assert.notEqual(tv.content, HDMI_1, 'not done yet');
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  assert.equal(tv.content, HDMI_1, 'done in the background');
+  // A fast failure is still reported.
+  world.network.request = request;
+  world.hub.records.get(1).client.request = request;
+  const failed = await setValue(world, 'channel', 42);
+  assert.equal(failed.success, false);
+});

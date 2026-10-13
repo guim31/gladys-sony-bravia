@@ -266,6 +266,10 @@ base64(":" + PIN)`, cookie `auth=…` (~14 jours) ; un `actRegister` avec `0000`
 - `television/volume-mute`, `volume-up`, `channel-up`… sont des **boutons poussoirs** dans le front
   (sans état) ; seuls `binary`, `volume` et `channel` sont continus. Un état de sourdine n'a pas de
   couple : il est montré par le widget.
+- Le cœur n'attend l'acquittement d'une **commande d'appareil** (`onSetValue`) que **5 s**
+  (`COMMAND_TIMEOUT_MS`, `externalIntegration/constants.js`), contre `timeout_seconds` pour les
+  actions, actions de scène et boutons de widget. Allumer un téléviseur puis changer d'entrée en prend
+  davantage : `hub.setValue` acquitte au bout de 4 s et laisse la commande finir (échec journalisé).
 - Les filtres d'un déclencheur font une **égalité stricte** (`multi_select` : appartenance) : un
   filtre texte (`name`) doit être écrit exactement comme l'envoie l'intégration.
 - Faux Gladys : `fake.transports` est une liste plate `{ device_external_id, transport }` ; le

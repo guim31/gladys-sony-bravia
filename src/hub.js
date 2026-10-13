@@ -87,6 +87,8 @@ export const HUB_TIMINGS = {
   powerOnCheckMs: 1_000,
   // Between two presses of a repeated key.
   keyRepeatMs: 300,
+  // A feature command still running after this is acknowledged to Gladys.
+  featureAckMs: 4_000,
 };
 
 const MAX_STATES_PER_REQUEST = 100;
@@ -1050,8 +1052,32 @@ export class BraviaHub {
     return times;
   }
 
-  /** A feature of a device: power, volume, buttons, channel, input, app. */
+  /**
+   * A feature of a device. Gladys waits 5 s for the answer of a device
+   * command (COMMAND_TIMEOUT_MS of the core), while turning a TV on and
+   * switching it to an input can take 30: past `featureAckMs`, the command
+   * is acknowledged and goes on, its failure logged.
+   */
   async setValue(device, feature, value) {
+    const work = this.featureCommand(device, feature, value);
+    let timer;
+    const late = new Promise((resolve) => {
+      timer = setTimeout(() => resolve('late'), this.timings.featureAckMs);
+      timer.unref?.();
+    });
+    try {
+      const outcome = await Promise.race([work.then(() => 'done'), late]);
+      if (outcome === 'late') {
+        logger.info(`${feature.external_id}: still running, acknowledged`);
+        work.catch((err) => logger.warn(`${feature.external_id}: ${err.message}`));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Power, volume, buttons, channel, input, app. */
+  async featureCommand(device, feature, value) {
     const record = this.recordOfDevice(device.external_id);
     if (!record) {
       throw failure(this.language, 'unknownTv');
