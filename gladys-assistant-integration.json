@@ -8,8 +8,8 @@
     "de": "Sony-Bravia-Fernseher: Ein/Aus, Lautstärke, Eingänge, Apps und Tasten, lokal.",
     "es": "Televisores Sony Bravia: encendido, volumen, entradas, aplicaciones y teclas, en local."
   },
-  "version": "1.0.1",
-  "docker_image": "ghcr.io/guim31/gladys-sony-bravia:1.0.1",
+  "version": "1.0.2",
+  "docker_image": "ghcr.io/guim31/gladys-sony-bravia:1.0.2",
   "gladys_version": ">=5.1.0",
   "cover_image": "https://raw.githubusercontent.com/guim31/gladys-sony-bravia/main/cover.png",
   "categories": ["multimedia"],
